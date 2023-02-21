@@ -1,548 +1,212 @@
 from pya3 import *
-from collections import namedtuple
-import datetime as datetime
-import pandas as pd
-import os
-import json
-# import time
-import schedule
-from datetime import datetime, timedelta
-import datetime
-import time
+from pprint import pprint
 import math
 import numpy as np
-import pdb
-import telegram
-from telegram.ext import Updater, CommandHandler
-from io import StringIO
-updater = Updater(token='5677013393:AAHkHd0QwFX5MyglPzCsnLJiQ3zJ9GezF9s', use_context=True)
+import time
+import datetime as datetime
+import pandas as pd
+
+uid = 'xxxxxx'
+key = 'xxxxxxxxxxxxxx'
+alice = Aliceblue(user_id=uid,api_key=key)
+print(alice.get_session_id()) # Get Session ID
+
+print("datetime.datetime.now()")
+print(datetime.datetime.now())
+   
+now = datetime.datetime.now()
+dt915am = datetime.datetime(2023, 1, 6, 9, 15, 3)
+dt330pm = datetime.datetime(2023, 1, 6, 15, 30, 00)
+
+orderplacetime = int(9) * 60 + int(15)
+timenow = (datetime.datetime.now().hour * 60 + datetime.datetime.now().minute)
+print("Waiting for 9.15 AM , CURRENT TIME:{}".format(datetime.datetime.now()))
+
+while timenow < orderplacetime:
+    time.sleep(2)
+    timenow = (datetime.datetime.now().hour * 60 + datetime.datetime.now().minute)
+print("Ready for trading, CURRENT TIME:{}".format(datetime.datetime.now()))
+
+# while True:
+#       if(now > dt915am and now < dt330pm):
+        #Initialization
+sym = 'BANKNIFTY23FEBFUT'
+exc = 'NFO'
+exp_date="2023-02-23"
+option_exp = '2023-02-23'
+qty = 25
+th_toll = 10
+# buy_above = 43140
+# sell_below = 43100
+
+# Predefined Functions
+def open_or_ltp(give = 'ltp'):
+    sym_info = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exc, symbol= sym, expiry_date=exp_date, is_fut=True, strike=None, is_CE=False))
+    if give == 'open':
+        if 'openPrice' in sym_info:
+            return float(sym_info['openPrice'])
+        else:
+            return 0
+    else:
+        if 'Ltp' in sym_info:
+            return float(sym_info['Ltp'])
+        else:
+            return 0
+           
+def round_up(n, decimals=0):
+        multiplier = 10 ** decimals
+        return np.ceil(n * multiplier) / multiplier
+#-------------------------------------------------------------------------------------------------
+# While commenting out this section also comment out the custom_order Section and vise versa
+#-------------------------------------------------------------------------------------------------
+def custom_order(i,q,b_or_s = "B"):
+    pprint(alice.place_order(transaction_type = TransactionType.Sell if b_or_s == 'S' else TransactionType.Buy,
+                     instrument = i,
+                     quantity = q,
+                     order_type = OrderType.Market,
+                     product_type = ProductType.Intraday,
+                     price = 0.0,
+                     trigger_price = None,
+                     stop_loss = None,
+                     square_off = None,
+                     trailing_sl = None,
+                     is_amo = False,
+                     order_tag='order1'))
+#-------------------------------------------------------------------------------------------------
+
+# LOGIC
+bull_flag = False
+bear_flag = False
+
+day_open = open_or_ltp('open')
+#day_open = 42868
+
+if day_open > 0:
+    ATMStrike = round(float(day_open)/100)*100
+    OTM_CE200 = ATMStrike + 200
+    OTM_PE200 = ATMStrike - 200
+    V1 = math.sqrt(day_open) + 0.035
+    V2 = math.pow(V1,2) # resquaring
+    V3 = math.sqrt(day_open) + 0.3325 #For T2 0.3325 / For T1 0.165
+    V4 = math.pow(V3,2)
+    buy_above = round_up(V2,1)
+    bull_tg1 = round_up(V4,1)
+    V15 = math.sqrt(day_open) - 0.035
+    V16 = math.pow(V15,2)
+    V17 = math.sqrt(day_open) - 0.3325 #For T2 0.3325 / For T1 0.165
+    V18 = math.pow(V17,2)
+    sell_below = round_up(V16,1)
+    bear_tg1 = round_up(V18,1)
+    
+    bull_sl = sell_below
+    bear_sl = buy_above
+    
+    #ce_ltp = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=True))
+    #pe_ltp = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=False))
+    
+    def CE_or_ltp(give = 'ltp'):
+        CE_info = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=True))
+        if give == 'open':
+            if 'openPrice' in CE_info:
+                return float(CE_info['openPrice'])
+            else:
+                return 0
+        else:
+            if 'Ltp' in CE_info:
+                return float(CE_info['Ltp'])
+            else:
+                return 0
+    def PE_or_ltp(give = 'ltp'):
+        PE_info = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=False))
+        if give == 'open':
+            if 'openPrice' in PE_info:
+                return float(PE_info['openPrice'])
+            else:
+                return 0
+        else:
+            if 'Ltp' in PE_info:
+                return float(PE_info['Ltp'])
+            else:
+                return 0 
+
+    ltp_ce = CE_or_ltp('ltp')
+    ltp_pe = PE_or_ltp('ltp')
+    #print('ltp_ce==>',ltp_ce)
+    #print('ltp_pe==>',ltp_pe)
+
+
+
+    while True:
+        ltp = open_or_ltp()
+        ltp_ce = CE_or_ltp('ltp')
+        ltp_pe = PE_or_ltp('ltp')
+
+        if ltp > 0:
+            print(f"LTP: {ltp} BA : {buy_above} SB: {sell_below} with {th_toll} point tollorance.")
+            print(f"LTP: {ltp} Bull TG1 : {bull_tg1} Bull SL: {bull_sl}")
+            print(f"LTP: {ltp} Bear TG1 : {bear_tg1} Bear SL: {bear_sl}")
+            bull_inst = alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=True)
+            bear_inst = alice.get_instrument_for_fno(exch=exc, symbol= "BANKNIFTY", expiry_date=option_exp, is_fut=False, strike=ATMStrike, is_CE=False)
+            # ENTRY
+            if ltp >= buy_above and ltp <= buy_above +th_toll and bull_flag is False:#+th_toll and bull_flag is False:
+                print('Push a BUY CE order for ATMStrike', ATMStrike,'CE - Last Traded Price==>',ltp_ce, (datetime.datetime.now()))
+                print('ltp_ce==>',ltp_ce)
+                ce = pd.DataFrame({'LTP_CE': [ltp_ce]})
+                ce.to_csv('BuyTradeCE.csv', mode='a')
+                custom_order(bull_inst,qty)
+                bull_flag = True
+            elif ltp <= sell_below and ltp >= sell_below -th_toll and bear_flag is False:#-th_toll and bear_flag is False:
+            # elif ltp <= sell_below and bear_flag is False:
+                print('Push a BUY PE order for ATMStrike', ATMStrike,'PE - Last Traded Price==>',ltp_pe, (datetime.datetime.now()))
+                print('ltp_pe==>',ltp_pe)
+                pe = pd.DataFrame({'LTP_PE': [ltp_pe]})
+                pe.to_csv('BuyTradePE.csv', mode='a')
+                custom_order(bear_inst,qty)
+                bear_flag = True
+            else:
+                print("No Condition Match or already in an open postion.",(datetime.datetime.now()))
+                print('ATMStrike -',ATMStrike,'CE - Last Traded Price==>',ltp_ce)
+                print('ATMStrike -',ATMStrike,'PE - Last Traded Price==>',ltp_pe)
+            
+            # EXIT
+            if bull_flag:
+                if ltp >= bull_tg1 or ltp <= bull_sl:
+                    print("ATM - CE Squared OFF." ,ATMStrike,'CE - Last Traded Price==>',ltp_ce,(datetime.datetime.now()))
+                    custom_order(bull_inst,qty, b_or_s="S")
+                    print('ltp_ce==>',ltp_ce)
+                    ce = pd.DataFrame({'LTP_CE': [ltp_ce]})
+                    ce.to_csv('BuyTradeCE.csv', mode='a')
+                    bull_flag = False
+            else:
+                print("Waiting for a BULL postion.",(datetime.datetime.now()))
+            
+            if bear_flag:
+                if ltp <= bear_tg1 or ltp >= bear_sl:
+                    print("ATM PE Squared OFF.",ATMStrike,'PE - Last Traded Price==>',ltp_pe,(datetime.datetime.now()))
+                    custom_order(bear_inst,qty, b_or_s="S")
+                    print('ltp_pe==>',ltp_pe)
+                    pe = pd.DataFrame({'LTP_PE': [ltp_pe]})
+                    pe.to_csv('BuyTradePE.csv', mode='a')
+                    bear_flag = False
+            else:
+                print("Waiting for a BEAR postion.", (datetime.datetime.now()))
+        else:
+            print("LTP Not Found")
+        
+        time.sleep(0.6)
+else:
+    print("Open Price Not Found")
+
+
+      # else:
+
+      #    if (now > dt330pm):
+      #       print("not between 9:15 and 3:30. so exiting.")
+      #       break
 
-# Define a function to send the output to the group
-def send_output(output):
-	# Send the output to the group
-	updater.bot.send_message(chat_id='-1001744638066', text=output)
-	updater.bot.send_message(chat_id='-1001842144538', text=output)
-	#updater.bot.send_message(chat_id='1842144538', text=output)
-	#updater.bot.send_message(chat_id='1386767482', text=output)
 
-# Redirect the output of the print command to a string
-with StringIO() as output:
 
-# def alert_bot(bot_message):
-#     try:
-#         msg = 'https://api.telegram.org/bot' + {{5677013393:AAHkHd0QwFX5MyglPzCsnLJiQ3zJ9GezF9s}} + '/sendMessage?chat_id=' + {{-1001744638066}} + \
-#                     '&parse_mode=HTML&text=' + html.escape(bot_message)
-		
-#         response = requests.get(msg)
 
-#         return response.json()
-#     except Exception as e:
-#         s_logger.exception(f'Error in alerting {e}')
-  
-# #Replace {{5677013393:AAHkHd0QwFX5MyglPzCsnLJiQ3zJ9GezF9s}} and {{-1001744638066}} with ur values
-
-
-	user_id = '488059'
-	api_key = '7iHGrc5U468s65OV6Sa27xyHmIE6alX2dypSEZhbF2IXsHBz3Z4zdbIrss7bWt72QZf6bnpYfWac8BJxMTAfgKs9zqRunB9HyT9UoaeKsIj2ZOe2nMVZU6kxQEMDVvKN'
-
-	alice = Aliceblue(user_id=user_id, api_key=api_key)
-
-	print(alice.get_session_id())
-
-	def round_up(n, decimals=0):
-		multiplier = 10 ** decimals
-		return np.ceil(n * multiplier) / multiplier
-
-	##stock_data_list
-	# watchlist = ['HDFCBANK']#, 'AXISBANK', 'ICICIBANK']
-
-	# exch = 'NSE'
-	##fut_data_list
-	watchlist1 = ['BANKNIFTY']#, 'NIFTY']
-	exchng = 'NFO'
-	traded_stocks = []
-	print('traded_stocks ===> ',traded_stocks)
-	Sell_fut_index = []
-	print('Sell_fut_index ===> ',Sell_fut_index)
-
-	# upper_symbol_instrument = alice.get_instrument_for_fno(exch="NFO",symbol= fut, expiry_date="2022-12-29", is_fut=True, strike=None, is_CE=False)
-	first_entry = False
-	while True:
-
-		# for stock in watchlist:
-
-			for fut in watchlist1:
-
-				# Ltp_Stock1 = alice.get_scrip_info(alice.get_instrument_by_symbol(exch, stock))['Ltp']
-				# Ltp_Stock = float(Ltp_Stock1)
-				# print(alice.get_scrip_info(alice.get_instrument_by_symbol('NFO', 'BANKNIFTY'))['Ltp'])
-				Ltp_Fut1 = alice.get_scrip_info(alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date="2023-01-25", is_fut=True, strike=None, is_CE=False))['Ltp']
-				Ltp_Fut = float(Ltp_Fut1) #tick price
-				#Ltp_Fut1.to_json("03-jan-LTPdata.json", mode='a')
-				if first_entry == False:
-					first_entry = True 
-					Ltp_Fut_old = Ltp_Fut 
-
-				#print("Ltp of ", stock, Ltp_Stock)
-				print("Current Time", (datetime.datetime.now()))
-				#print(datetime.datetime.now())
-				print("LTP of ", fut, Ltp_Fut1,"==|== OLD LTP", Ltp_Fut_old )#, file=output)	# Enter time
-					
-
-
-
-				##pulling_fut_Buy_condition_from_here!!!
-				DayOpen = float(alice.get_scrip_info(alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date="2023-01-25", is_fut=True, strike=None, is_CE=False))['openPrice'])#df["open"].iloc[0]
-				#print(DayOpen)
-				# CEOTMStrike = round(float(DayOpen)/100)*100+200
-				# PEOTMStrike = round(float(DayOpen)/100)*100-200
-				# print(CEOTMStrike)
-				# print(PEOTMStrike)
-				ATMStrike = round(float(DayOpen)/100)*100
-				 #ATM = round(float(LTP)/100) * 100
-				#print('ATMStrike =', file=output)
-				# pdb.set_trace()
-				expiry_date = "2023-01-05"# Option weekly expiry Dates 2023-01-05 or 2023-01-12 or 2023-01-19 or 2023-01-25
-				qty_fut = 25
-				qty_stock = 500
-				# traded_stocks = []
-
-				CDO = DayOpen
-				V1 = math.sqrt(CDO) + 0.035
-				V2 = math.pow(V1,2) # resquaring
-				Buyabove = round_up(V2,1)
-				print('Buy Only Above in index= ',Buyabove, 'in', fut)
-
-				V3 = math.sqrt(CDO) + 0.165
-				V4 = math.pow(V3,2)
-				Target1 = round_up(V4,1)
-				BT1Earning = round_up(Target1 - Buyabove)
-				# print('Buy Target 1 = ',Target1, 'If Target Hit....Earning in Points = ', BT1Earning )
-
-
-				V5 = math.sqrt(CDO) + 0.3325
-				V6 = math.pow(V5,2)
-				Target2 = round_up(V6,1)
-				BT2Earning = round_up(Target2 - Buyabove)
-				# print('Buy Target 2 = ',Target2, 'If Target Hit....Earning in Points = ', BT2Earning)
-
-				V7 = math.sqrt(CDO) + 0.4825
-				V8 = math.pow(V7,2)
-				Target3 = round_up(V8,1)
-				BT3Earning = round_up(Target3 - Buyabove)
-				# print('Buy Target 3 = ',Target3, 'If Target Hit....Earning in Points = ', BT3Earning)
-
-				V9 = math.sqrt(CDO) + 0.6125
-				V10 = math.pow(V9,2)
-				Target4 = round_up(V10,1)
-				BT4Earning = round_up(Target4 - Buyabove)
-				# print('Buy Target 4 = ',Target4, 'If Target Hit....Earning in Points = ', BT4Earning)
-
-				V11 = math.sqrt(CDO) + 0.8125
-				V12 = math.pow(V11,2)
-				Target5 = round_up(V12,1)
-				BT5Earning = round_up(Target5 - Buyabove)
-				# print('Buy Target 5 = ',Target5, 'If Target Hit....Earning in Points = ', BT5Earning)
-
-				V13 = math.sqrt(CDO) - 0.035
-				V14 = math.pow(V13,2)
-				BuyStop = round_up(V14,1)
-				BuyStopLoss = round_up(Buyabove - BuyStop )
-				# print("Buy Stop Loss = ",BuyStop, 'If Stop Loss Hit....Loss in Points = ', BuyStopLoss)
-				 
-				#pulling_fut_sell_cond_from_here!!!
-
-				V15 = math.sqrt(CDO) - 0.035
-				V16 = math.pow(V15,2)
-				Sellbelow = round_up(V16,1)
-				print('Sell Only Below in index = ',Sellbelow, 'in', fut)
-
-				V17 = math.sqrt(CDO) - 0.165
-				V18 = math.pow(V17,2)
-				DTarget1 = round_up(V18,1)
-				ST1Earning = round_up(Sellbelow - DTarget1)
-				# print('Sell Target 1 = ',DTarget1, 'If Target Hit....Earning in Points = ', ST1Earning)
-
-				V19 = math.sqrt(CDO) - 0.3325
-				V20 = math.pow(V19,2)
-				DTarget2 = round_up(V20,1)
-				ST2Earning = round_up(Sellbelow - DTarget2)
-				# print('Sell Target 2 = ',DTarget2, 'If Target Hit....Earning in Points = ', ST2Earning)
-
-				V21 = math.sqrt(CDO) - 0.4825
-				V22 = math.pow(V21,2)
-				DTarget3 = round_up(V22,1)
-				ST3Earning = round_up(Sellbelow - DTarget3)
-				# print('Sell Target 3 = ',DTarget3, 'If Target Hit....Earning in Points = ', ST3Earning)
-
-				V23 = math.sqrt(CDO) - 0.6125
-				V24 = math.pow(V23,2)
-				DTarget4 = round_up(V24,1)
-				ST4Earning = round_up(Sellbelow - DTarget4)
-				# print('Sell Target 4 = ',DTarget4, 'If Target Hit....Earning in Points = ', ST4Earning)
-
-				V25 = math.sqrt(CDO) - 0.8125
-				V26 = math.pow(V25,2)
-				DTarget5 = round_up(V26,1)
-				ST5Earning = round_up(Sellbelow - DTarget5)
-				# print('Sell Target 5 = ',DTarget5, 'If Target Hit....Earning in Points = ', ST5Earning)
-
-				V27 = math.sqrt(CDO) + 0.035
-				V28 = math.pow(V27,2)
-				SellStop = round_up(V28,1)
-				SellStopLoss = round_up(SellStop - Sellbelow )
-				# print("Sell Stop Loss = ",SellStop, 'If Stop Loss Hit....Loss in Points = ', SellStopLoss)
-
-				#pulling_stock_buy_cond_from_here!!!
-
-				# stock_open = float(alice.get_scrip_info(alice.get_instrument_by_symbol(exch, stock))['openPrice'])
-				# # print(stock_open)
-
-				# CDO_STK = stock_open
-
-
-				# V1 = math.sqrt(CDO_STK) + 0.035
-				# V2 = math.pow(V1,2)
-				# Buyabove_stk = round_up(V2,1)
-				# print('Buy Only Above in stocks  = ',Buyabove_stk, 'in', stock)
-
-				# V3 = math.sqrt(CDO_STK) + 0.165
-				# V4 = math.pow(V3,2)
-				# Target1_stk = round_up(V4,1)
-				# BT1Earning = round_up(Target1_stk - Buyabove_stk)
-				# # print('Buy Target 1 = ',Target1_stk, 'If Target Hit....Earning in Points = ', BT1Earning )
-
-
-				# V5 = math.sqrt(CDO_STK) + 0.3325
-				# V6 = math.pow(V5,2)
-				# Target2_stk = round_up(V6,1)
-				# BT2Earning = round_up(Target2_stk - Buyabove_stk)
-				# # print('Buy Target 2 = ',Target2_stk, 'If Target Hit....Earning in Points = ', BT2Earning)
-
-				# V7 = math.sqrt(CDO_STK) + 0.4825
-				# V8 = math.pow(V7,2)
-				# Target3_stk = round_up(V8,1)
-				# BT3Earning = round_up(Target3_stk - Buyabove_stk)
-				# # print('Buy Target 3 = ',Target3_stk, 'If Target Hit....Earning in Points = ', BT3Earning)
-
-				# V9 = math.sqrt(CDO_STK) + 0.6125
-				# V10 = math.pow(V9,2)
-				# Target4_stk = round_up(V10,1)
-				# BT4Earning = round_up(Target4_stk - Buyabove_stk)
-				# # print('Buy Target 4 = ',Target4_stk, 'If Target Hit....Earning in Points = ', BT4Earning)
-
-				# V11 = math.sqrt(CDO_STK) + 0.8125
-				# V12 = math.pow(V11,2)
-				# Target5_stk = round_up(V12,1)
-				# BT5Earning = round_up(Target5_stk - Buyabove_stk)
-				# # print('Buy Target 5 = ',Target5_stk, 'If Target Hit....Earning in Points = ', BT5Earning)
-
-				# V13 = math.sqrt(CDO_STK) - 0.035
-				# V14 = math.pow(V13,2)
-				# BuyStop_stk = round_up(V14,1)
-				# BuyStopLoss = round_up(Buyabove_stk - BuyStop_stk )
-				# # print("Buy Stop Loss = ",BuyStop_stk, 'If Stop Loss Hit....Loss in Points = ', BuyStopLoss)
-
-
-				# V15 = math.sqrt(CDO_STK) - 0.035
-				# V16 = math.pow(V15,2)
-				# Sellbelow_stk = round_up(V16,1)
-				# print('Sell Only Below in stocks = ',Sellbelow_stk, 'in', stock)
-
-				# V17 = math.sqrt(CDO_STK) - 0.165
-				# V18 = math.pow(V17,2)
-				# STK_Target1 = round_up(V18,1)
-				# ST1Earning = round_up(Sellbelow_stk - STK_Target1)
-				# # print('Sell Target 1 = ',STK_Target1, 'If Target Hit....Earning in Points = ', ST1Earning)
-
-				# V19 = math.sqrt(CDO_STK) - 0.3325
-				# V20 = math.pow(V19,2)
-				# STK_Target2 = round_up(V20,1)
-				# ST2Earning = round_up(Sellbelow_stk - STK_Target2)
-				# # print('Sell Target 2 = ',STK_Target2, 'If Target Hit....Earning in Points = ', ST2Earning)
-
-				# V21 = math.sqrt(CDO_STK) - 0.4825
-				# V22 = math.pow(V21,2)
-				# STK_Target3 = round_up(V22,1)
-				# ST3Earning = round_up(Sellbelow_stk - STK_Target3)
-				# # print('Sell Target 3 = ',STK_Target3, 'If Target Hit....Earning in Points = ', ST3Earning)
-
-				# V23 = math.sqrt(CDO_STK) - 0.6125
-				# V24 = math.pow(V23,2)
-				# STK_Target4 = round_up(V24,1)
-				# ST4Earning = round_up(Sellbelow_stk - STK_Target4)
-				# # print('Sell Target 4 = ',STK_Target4, 'If Target Hit....Earning in Points = ', ST4Earning)
-
-				# V25 = math.sqrt(CDO_STK) - 0.8125
-				# V26 = math.pow(V25,2)
-				# STK_Target5 = round_up(V26,1)
-				# ST5Earning = round_up(Sellbelow_stk - STK_Target5)
-				# # print('Sell Target 5 = ',STK_Target5, 'If Target Hit....Earning in Points = ', ST5Earning)
-
-				# V27 = math.sqrt(CDO_STK) + 0.035
-				# V28 = math.pow(V27,2)
-				# SellStop_stk = round_up(V28,1)
-				# SellStopLoss = round_up(SellStop_stk - Sellbelow_stk )
-				# print("Sell Stop Loss = ",SellStop_stk, 'If Stop Loss Hit....Loss in Points = ', SellStopLoss)
-
-				##fut_buy_sell_condition_start_from_here!!!
-				traded_stocks = []
-				Sell_fut_index = []
-#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-				#ATM CE BUY or SELL or STOP LOSS HIT condition starts here!!!
-
-				if (Buyabove <= Ltp_Fut ) and (Buyabove > Ltp_Fut_old ) and (fut not in traded_stocks): # Change to Buyabove
-
-					upper_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=True)
-
-					order = alice.place_order(transaction_type = TransactionType.Buy,
-												instrument = alice.get_instrument_by_symbol(exchng, upper_symbol_instrument.name),
-												quantity =qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)
-					traded_stocks.append(fut)
-					print(traded_stocks)
-					print("Buy order placed in ATM CE:", fut, ATMStrike)
-
-				if (Target1 <= Ltp_Fut) and (Target1 > Ltp_Fut_old ) and (fut in traded_stocks):# or (Target2 <= Ltp_Fut) and (fut not in traded_stocks) or (Target3 <= Ltp_Fut) and (fut not in traded_stocks) or (Target4 <= Ltp_Fut) and (fut not in traded_stocks) or (Target5 <= Ltp_Fut) and (fut not in traded_stocks):
-
-					upper_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol=fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=True)
-
-					order = alice.place_order(transaction_type = TransactionType.Sell,
-												instrument = alice.get_instrument_by_symbol(exchng, upper_symbol_instrument.name),
-												quantity =qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)					
-					traded_stocks.append(fut)
-					print(traded_stocks)
-					traded_stocks = []
-					print("Target hit in ATM CE Buy order:", fut, ATMStrike)
-
-				if (BuyStop >= Ltp_Fut) and (BuyStop < Ltp_Fut_old )and (fut in traded_stocks):
-
-					upper_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=True)
-
-					order = alice.place_order(transaction_type = TransactionType.Sell,
-												instrument = alice.get_instrument_by_symbol(exchng, upper_symbol_instrument.name),
-												quantity =qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)					
-					traded_stocks.append(fut)
-					print(traded_stocks)
-					traded_stocks = []
-					print("Stop loss hit in ATM CE Buy order:", fut, ATMStrike)
-
-#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-				#ATM PE BUY or SELL or STOP LOSS HIT condition starts here!!!
-
-				if (Sellbelow >= Ltp_Fut) and (Sellbelow < Ltp_Fut_old ) and (fut not in Sell_fut_index):
-
-					lower_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=False)
-
-					order = alice.place_order(transaction_type = TransactionType.Buy,
-												instrument = alice.get_instrument_by_symbol(exchng, lower_symbol_instrument.name),
-												quantity = qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)
-					Sell_fut_index.append(fut)
-					print(Sell_fut_index)
-					print("Buy oredr placed in ATM PE :", fut, ATMStrike )
-
-				if (DTarget2 >= Ltp_Fut) and (DTarget2 < Ltp_Fut_old ) and (fut in Sell_fut_index): #or (DTarget2 >= Ltp_Fut) and (fut not in traded_stocks): #or (DTarget3 >= Ltp_Fut) or (DTarget4 >= Ltp_Fut) or (DTarget4 >= Ltp_Fut) and (fut not in traded_stocks):
-
-
-					lower_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=False)
-					order = alice.place_order(transaction_type = TransactionType.Sell,
-												instrument = alice.get_instrument_by_symbol(exchng, lower_symbol_instrument.name),
-												quantity =qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)
-					Sell_fut_index.append(fut)
-					print(Sell_fut_index)
-					Sell_fut_index = []
-					print("Target hit in ATM PE Buy order :", fut, ATMStrike)
-
-				if (SellStop <= Ltp_Fut) and (SellStop > Ltp_Fut_old )  and (fut in Sell_fut_index):
-
-					lower_symbol_instrument = alice.get_instrument_for_fno(exch=exchng, symbol= fut, expiry_date=expiry_date, is_fut=False, strike=ATMStrike, is_CE=False)
-					order = alice.place_order(transaction_type = TransactionType.Sell,
-												instrument = alice.get_instrument_by_symbol(exchng, lower_symbol_instrument.name),
-												quantity =qty_fut,
-												order_type = OrderType.Market,
-												product_type = ProductType.Intraday,
-												price = 0.0,
-												trigger_price = None,
-												stop_loss = None,
-												square_off = None,
-												trailing_sl = None,
-												is_amo = False,
-												order_tag='order1')
-					print(order)
-					Sell_fut_index.append(fut)
-					print(Sell_fut_index)
-					Sell_fut_index = []
-					print("Stoploss hit in ATM PE Buy order:", fut, ATMStrike)
-
-				# ##stock_buy_sell_condition_start_from_here!!!
-
-				# if (Buyabove_stk <= Ltp_Stock ) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Buy,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-
-				# 	print("Buy order placed in stock :", stock)
-
-				# if (Target1_stk <= Ltp_Stock) or (Target2_stk <= Ltp_Stock) or (Target3_stk <= Ltp_Stock) or (Target4_stk <= Ltp_Stock) or (Target5_stk <= Ltp_Stock) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Sell,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-
-				# 	print("Target hit in stock:", stock)
-
-				# if (BuyStop_stk >= Ltp_Stock) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Sell,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-				# 	print("Stoploss hit in buy order in stock:", stock)
-
-				# ##stock_sell_condition_from_here!!!
-
-				# if (Sellbelow_stk >= Ltp_Stock) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Sell,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-
-				# 	print("Sell order placed in:", stock)
-
-				# if (STK_Target1 >= Ltp_Stock) or (STK_Target2 >= Ltp_Stock) or (STK_Target3 >= Ltp_Stock) or (STK_Target4 >= Ltp_Stock) or (STK_Target5 >= Ltp_Stock) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Sell,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-
-				# 	print("Target hit in sell ordered stock:", stock )
-
-				# if (SellStop_stk <= Ltp_Stock) and (stock not in traded_stocks):
-
-				# 	order = alice.place_order(transaction_type = TransactionType.Sell,
-				# 								instrument = alice.get_instrument_by_symbol(exch, stock),
-				# 								quantity =qty_stock,
-				# 								order_type = OrderType.Market,
-				# 								product_type = ProductType.Intraday,
-				# 								price = 0.0,
-				# 								trigger_price = None,
-				# 								stop_loss = None,
-				# 								square_off = None,
-				# 								trailing_sl = None,
-				# 								is_amo = False,
-				# 								order_tag='order1')
-				# 	print(order)
-				# 	traded_stocks.append(stock)
-				# 	print("Stoploss order hit in sell stock:", stock)
-
-				Ltp_Fut_old = Ltp_Fut
-send_output(output.getvalue())
-#Ltp_Fut_old = Ltp_Fut
-time.sleep(0.8)
 
 
 
