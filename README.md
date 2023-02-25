@@ -1,2 +1,0 @@
-# MintMaster
-AutoTrading
